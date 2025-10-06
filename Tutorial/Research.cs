@@ -6,7 +6,7 @@ using System.Text.Json;
 
 namespace APITest
 {
-    public class Program
+    public class Program1
     {
         static HttpClient client = new HttpClient();
 

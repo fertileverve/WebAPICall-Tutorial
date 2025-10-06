@@ -1,16 +1,14 @@
-// public record class Repository(
-//     string Name,
-//     string Description,
-//     Uri GitHubHomeUrl,
-//     Uri Homepage,
-//     int Watchers,
-//     DateTime LastPushUtc
-// )
-// {
-//     public DateTime LastPush => LastPushUtc.ToLocalTime();
-// }
-
+//=====================================================================================
+// GitHub with repositories
+//=====================================================================================
 public record class Repository(
-    string id,
-    string name
-);
+string Name,
+    string Description,
+    Uri GitHubHomeUrl,
+    Uri Homepage,
+    int Watchers,
+    DateTime LastPushUtc
+)
+{
+    public DateTime LastPush => LastPushUtc.ToLocalTime();
+}
