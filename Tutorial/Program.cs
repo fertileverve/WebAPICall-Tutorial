@@ -1,34 +1,48 @@
-﻿//=====================================================================================
-// Reqres with standard output, no parsing
-//=====================================================================================
+﻿/*
+20251006 Joseph Parchem
+This is the current method for standard API calls from C#. There is still a lot to research
+    1. async methods
+    2. httpClient factories
+    3. List notation
+    4. Json custom parsing and labels
+
+I already have some code to connect to the Dataverse using a client secret and will be bringing that in
+somehow. I think I will need to research how to have separate files for this namespace/class.
+
+Once that is all together, I will continue to flesh out the Dataverse Employee table I started and have
+this code insert all the dummy data into the table. More to do here too.
+    1. Can this be run from Power Platform?
+    2. Can app workflow run this somehow?
+    3. Field by field comparison to log changes
+    4. Where to store log files?
+*/
 using System.Net.Http.Headers;
 using System.Text.Json;
+using Microsoft.PowerPlatform.Dataverse.Client;
+using Microsoft.Xrm.Sdk;
+using Microsoft.Xrm.Sdk.Query;
 
 namespace APITest
 {
     public class Program
     {
+        //Connection to API Land
         static HttpClient client = new HttpClient();
 
-        public class EmployeeReqres
+        //Connection for Dataverse
+        static string dataverseConnect = "";
+        static string dataverseSecretID = "";
+        static string dataverseAppID = "";
+        static string dataverseUri = "";
+
+        #region Setup Classes
+
+        public class Employees
         {
-            public List<EmployeeDataReqres> data { get; set; } = new();
+            public List<Employee> users { get; set; } = new();
         }
 
-        public class EmployeeDJson
-        {
-            public List<EmployeeDataDJson> users { get; set; } = new();
-        }
-        public class EmployeeDataReqres
-        {
-            public string id { get; set; } = "";
-            public string name { get; set; } = "";
-            public string year { get; set; } = "";
-            public string color { get; set; } = "";
-            public string pantone_value { get; set; } = "";
-        }
-
-        public class EmployeeDataDJson
+        public class Employee
         {
             public int id { get; set; } = 0;
             public string firstName { get; set; } = "";
@@ -41,39 +55,29 @@ namespace APITest
             public string password { get; set; } = "";
             public string birthDate { get; set; } = "";
             public string image { get; set; } = "";
-            public AddressDJson address { get; set; } = new();
+            public Address address { get; set; } = new();
         }
 
-        public class AddressDJson
+        public class Address
         {
             public string address { get; set; } = "";
             public string city { get; set; } = "";
             public string state { get; set; } = "";
             public string stateCode { get; set; } = "";
             public string postalCode { get; set; } = "";
-            public CoordinatesDJson coordinates { get; set; } = new();
+            public Coordinates coordinates { get; set; } = new();
         }
 
-        public class CoordinatesDJson
+        public class Coordinates
         {
             public float lat { get; set; } = 0;
             public float lng { get; set; } = 0;
         }
+        #endregion
 
-        static void ShowEmployeesReqRes(List<EmployeeDataReqres> employees)
-        {
-            foreach (var user in employees)
-            {
-                Console.WriteLine($"ID: {user.id}");
-                Console.WriteLine($"Name: {user.name}");
-                Console.WriteLine($"Year: {user.year}");
-                Console.WriteLine($"Color: {user.color}");
-                Console.WriteLine($"Pantone: {user.pantone_value}");
-                Console.WriteLine();
-            }
-        }
+        #region Output
 
-        static void ShowEmployeesDJson(List<EmployeeDataDJson> employees)
+        static void ShowEmployeesDJson(List<Employee> employees)
         {
             foreach (var user in employees)
             {
@@ -91,25 +95,23 @@ namespace APITest
                 Console.WriteLine($"Lat: {user.address.coordinates.lat}");
                 Console.WriteLine($"Lng: {user.address.coordinates.lng}");
                 Console.WriteLine();
+
+                // Type objectType = user.GetType();
+                // PropertyInfo[] properties = objectType.GetProperties();
+
+                // foreach (PropertyInfo property in properties)
+                // {
+                //     Console.WriteLine($"{property.Name}: {property.GetValue(user, null)}");
+                // }
             }
         }
+        #endregion
 
-        static async Task<EmployeeReqres> GetEmployeeAsyncReqres(string path)
+        #region Tasks
+
+        static async Task<List<Employee>> GetEmployeeAsyncDJson(string path)
         {
-            EmployeeReqres employees = new EmployeeReqres();
-            HttpResponseMessage response = await client.GetAsync(path);
-
-            if (response.IsSuccessStatusCode)
-            {
-                employees = await response.Content.ReadAsAsync<EmployeeReqres>();
-            }
-
-            return employees;
-        }
-
-        static async Task<List<EmployeeDataDJson>> GetEmployeeAsyncDJson(string path)
-        {
-            List<EmployeeDataDJson> employees = new();
+            List<Employee> employees = new();
 
             try
             {
@@ -122,12 +124,12 @@ namespace APITest
                     if (json.Contains("{\"users\""))
                     {
                         Console.WriteLine($"Working on multiple users...");
-                        EmployeeDJson? wrapper = JsonSerializer.Deserialize<EmployeeDJson>(json);
+                        Employees? wrapper = JsonSerializer.Deserialize<Employees>(json);
                         if (wrapper != null) employees = wrapper.users;
                     }
                     else
                     {
-                        EmployeeDataDJson? user = JsonSerializer.Deserialize<EmployeeDataDJson>(json);
+                        Employee? user = JsonSerializer.Deserialize<Employee>(json);
                         if (user != null) employees.Add(user);
                     }
                 }
@@ -139,112 +141,85 @@ namespace APITest
 
             return employees;
         }
+        #endregion
 
         static void Main(string[] args)
         {
-            // string responseURLReqres = "https://reqres.in/api/users";
-            // string sourceReqres = "Reqres";
-            // string apiKeyReqRes = "reqres-free-v1";
-
             string responseURLDJson = "https://dummyjson.com/users/1";
-            string sourceDJson = "DJson";
 
-            //RunAsync(responseURLReqres, apiKeyReqRes, sourceReqres).GetAwaiter().GetResult();
-            RunAsync(responseURLDJson, "", sourceDJson).GetAwaiter().GetResult();
+            RunAsync(responseURLDJson).GetAwaiter().GetResult();
         }
 
-        static async Task RunAsync(string responseURL, string apiKey, string source)
+        static async Task RunAsync(string responseURL)
         {
             client.BaseAddress = new Uri(responseURL);
             client.DefaultRequestHeaders.Accept.Clear();
             client.DefaultRequestHeaders.Accept.Add(
                 new MediaTypeWithQualityHeaderValue("application/json"));
-            client.DefaultRequestHeaders.Add("x-api-key", apiKey);
 
             try
             {
-                switch (source)
-                {
-                    case "Reqres":
-                        // var response = await client.GetStringAsync(client.BaseAddress);
-                        // Console.WriteLine($"{response}");
-                        EmployeeReqres employeesReqres = new EmployeeReqres();
+                List<Employee> employees = await GetEmployeeAsyncDJson(client.BaseAddress.ToString());
+                ShowEmployeesDJson(employees);
 
-                        employeesReqres = await GetEmployeeAsyncReqres(client.BaseAddress.ToString());
-                        List<EmployeeDataReqres> employeeArrayReqres = employeesReqres.data;
-                        ShowEmployeesReqRes(employeeArrayReqres);
-                        break;
-                    case "DJson":
-                        // var response2 = await client.GetStringAsync(client.BaseAddress);
-                        // Console.WriteLine($"{response2}");
-
-                        List<EmployeeDataDJson> employees = await GetEmployeeAsyncDJson(client.BaseAddress.ToString());
-                        ShowEmployeesDJson(employees);
-                        break;
-                }
+                //DEBUG
+                // var response2 = await client.GetStringAsync(client.BaseAddress);
+                // Console.WriteLine($"{response2}");
             }
             catch (Exception ex)
             {
                 Console.WriteLine(ex.Message);
             }
+
+            // Run import after the awaits are over
+            // TODO: Is there a better way to make sure the async has completed?
+            dataverseTest();
         }
+
+        public static void dataverseInitialize()
+        {
+            dataverseSecretID = "";
+            dataverseAppID = "";
+            dataverseUri = "";
+
+            dataverseConnect = $@"AuthType=ClientSecret;
+                                SkipDiscovery=true;url={dataverseUri};
+                                Secret={dataverseSecretID};
+                                ClientId={dataverseAppID};
+                                RequireNewInstance=true";
+        }
+
+        public static void dataverseTest()
+        {
+            dataverseInitialize();
+
+            try
+            {
+                using (ServiceClient svc = new ServiceClient(dataverseConnect))
+                {
+                    if (svc.IsReady)
+                    {
+                        QueryExpression query = new QueryExpression("account");
+                        query.ColumnSet = new ColumnSet(true);
+
+                        EntityCollection accounts = svc.RetrieveMultiple(query);
+
+                        foreach (Entity account in accounts.Entities)
+                        {
+                            Console.WriteLine($"Name: {account.GetAttributeValue<string>("name")}");
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("Failed to connect to Dataverse.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"{ex.Message}");
+            }
+        }
+
     }
 }
-
-
-
-//=====================================================================================
-// Reqres with standard output, no parsing
-//=====================================================================================
-// using System.Net.Http.Headers;
-
-// using HttpClient client = new();
-// client.DefaultRequestHeaders.Accept.Clear();
-// client.DefaultRequestHeaders.Accept.Add(
-//     new MediaTypeWithQualityHeaderValue("application/json"));
-// client.DefaultRequestHeaders.Add("x-api-key", "reqres-free-v1");
-
-// await ProcessRepositoriesAsync(client);
-
-// static async Task ProcessRepositoriesAsync(HttpClient client)
-// {
-//     var json = await client.GetStringAsync(
-//         "https://reqres.in/api/employees/2");
-
-//     Console.Write(json);
-// }
-
-
-//=====================================================================================
-// GitHub with repositories
-//=====================================================================================
-// using System.Net.Http.Headers;
-// using System.Net.Http.Json;
-
-// using HttpClient client = new();
-// client.DefaultRequestHeaders.Accept.Clear();
-// client.DefaultRequestHeaders.Accept.Add(
-//     new MediaTypeWithQualityHeaderValue("application/vnd.github.v3+json"));
-// client.DefaultRequestHeaders.Add("User-Agent", ".NET Foundation Repository Reporter");
-
-// var respositories = await ProcessRepositoriesAsync(client);
-
-// foreach (var repo in respositories)
-// {
-//     Console.WriteLine($"Name: {repo.Name}");
-//     Console.WriteLine($"Homepage: {repo.Homepage}");
-//     Console.WriteLine($"GitHub: {repo.GitHubHomeUrl}");
-//     Console.WriteLine($"Description: {repo.Description}");
-//     Console.WriteLine($"Watechers: {repo.Watchers:#,0}");
-//     Console.WriteLine($"Last Push: {repo.LastPush}");
-//     Console.WriteLine($"{repo.LastPushUtc}");
-//     Console.WriteLine();
-// }
-
-// static async Task<List<Repository>> ProcessRepositoriesAsync(HttpClient client)
-// //static async Task ProcessRepositoriesAsync(HttpClient client)
-// {
-//     var repositories = await client.GetFromJsonAsync<List<Repository>>("https://api.github.com/orgs/dotnet/repos");
-
-//     return repositories ?? new();
-// }
