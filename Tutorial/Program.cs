@@ -16,210 +16,124 @@ this code insert all the dummy data into the table. More to do here too.
     3. Field by field comparison to log changes
     4. Where to store log files?
 */
-using System.Net.Http.Headers;
-using System.Text.Json;
-using Microsoft.PowerPlatform.Dataverse.Client;
 using Microsoft.Xrm.Sdk;
-using Microsoft.Xrm.Sdk.Query;
+using APITest.Dataverse;
+using APITest.APIDummyJSON;
+using System.Globalization;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace APITest
 {
     public class Program
     {
-        //Connection to API Land
-        static HttpClient client = new HttpClient();
+        // Connection to API Land
+        static DummyJSONProcessor myAPI = new();
 
-        //Connection for Dataverse
-        static string dataverseConnect = "";
-        static string dataverseSecretID = "";
-        static string dataverseAppID = "";
-        static string dataverseUri = "";
+        // Connection to Dataverse
+        static DataverseProcessor myDataverse = new();
 
-        #region Setup Classes
+        public static string responseURL = "";
+        public static string dataverseConnectionString = "";
 
-        public class Employees
+        #region Main
+        public static void Main(string[] args)
         {
-            public List<Employee> users { get; set; } = new();
-        }
+            var configuration = new ConfigurationBuilder()
+                .SetBasePath(Directory.GetCurrentDirectory())
+                .AddJsonFile("appsettings.development.json", optional: false, reloadOnChange: true)
+                .Build();
+            dataverseConnectionString = configuration.GetConnectionString("Dataverse") ?? throw new InvalidOperationException("Dataverse connection string is not found.");
+            responseURL = configuration.GetConnectionString("DummyJSON") ?? throw new InvalidOperationException("API connection string is not found.");
 
-        public class Employee
-        {
-            public int id { get; set; } = 0;
-            public string firstName { get; set; } = "";
-            public string lastName { get; set; } = "";
-            public int age { get; set; } = 0;
-            public string gender { get; set; } = "";
-            public string email { get; set; } = "";
-            public string phone { get; set; } = "";
-            public string username { get; set; } = "";
-            public string password { get; set; } = "";
-            public string birthDate { get; set; } = "";
-            public string image { get; set; } = "";
-            public Address address { get; set; } = new();
-        }
+            myAPI.APIInitialize();
+            myDataverse.DataverseInitialize();
 
-        public class Address
-        {
-            public string address { get; set; } = "";
-            public string city { get; set; } = "";
-            public string state { get; set; } = "";
-            public string stateCode { get; set; } = "";
-            public string postalCode { get; set; } = "";
-            public Coordinates coordinates { get; set; } = new();
-        }
+            List<Employee> employees = RunAsync().GetAwaiter().GetResult();
 
-        public class Coordinates
-        {
-            public float lat { get; set; } = 0;
-            public float lng { get; set; } = 0;
+            myAPI.ShowEmployees(employees);
+            //myDataverse.DataverseTest();
+
+            List<Entity> entities = SyncEmployees(employees, employees.Count());
+            //myDataverse.ShowEntities(entities);
+
+            //myDataverse.CreateEntities(entities);
         }
         #endregion
 
-        #region Output
-
-        static void ShowEmployeesDJson(List<Employee> employees)
-        {
-            foreach (var user in employees)
-            {
-                Console.WriteLine($"ID: {user.id}");
-                Console.WriteLine($"Name: {user.firstName + " " + user.lastName}");
-                Console.WriteLine($"Age: {user.age}");
-                Console.WriteLine($"Gender: {user.gender}");
-                Console.WriteLine($"Email: {user.email}");
-                Console.WriteLine($"Image: {user.image}");
-                Console.WriteLine($"Address: {user.address.address}");
-                Console.WriteLine($"City: {user.address.city}");
-                Console.WriteLine($"State: {user.address.state}");
-                Console.WriteLine($"State Code: {user.address.stateCode}");
-                Console.WriteLine($"ZIP: {user.address.postalCode}");
-                Console.WriteLine($"Lat: {user.address.coordinates.lat}");
-                Console.WriteLine($"Lng: {user.address.coordinates.lng}");
-                Console.WriteLine();
-
-                // Type objectType = user.GetType();
-                // PropertyInfo[] properties = objectType.GetProperties();
-
-                // foreach (PropertyInfo property in properties)
-                // {
-                //     Console.WriteLine($"{property.Name}: {property.GetValue(user, null)}");
-                // }
-            }
-        }
-        #endregion
-
-        #region Tasks
-
-        static async Task<List<Employee>> GetEmployeeAsyncDJson(string path)
+        #region The Work
+        static async Task<List<Employee>> RunAsync()
         {
             List<Employee> employees = new();
 
             try
             {
-                HttpResponseMessage response = await client.GetAsync(path);
-
-                if (response.IsSuccessStatusCode)
-                {
-                    string json = await response.Content.ReadAsStringAsync();
-
-                    if (json.Contains("{\"users\""))
-                    {
-                        Console.WriteLine($"Working on multiple users...");
-                        Employees? wrapper = JsonSerializer.Deserialize<Employees>(json);
-                        if (wrapper != null) employees = wrapper.users;
-                    }
-                    else
-                    {
-                        Employee? user = JsonSerializer.Deserialize<Employee>(json);
-                        if (user != null) employees.Add(user);
-                    }
-                }
+                if (myAPI.client.BaseAddress != null)
+                    employees = await myAPI.GetEmployeeAsync();
+                else
+                    throw new InvalidOperationException("HTTP client BaseAddress is not set.");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"{ex.Message}");
+                DefaultException(ex);
             }
 
             return employees;
         }
         #endregion
 
-        static void Main(string[] args)
+        #region Tasks
+        static List<Entity> SyncEmployees(List<Employee> sources, int count)
         {
-            string responseURLDJson = "https://dummyjson.com/users/1";
+            List<Entity> entities = new();
 
-            RunAsync(responseURLDJson).GetAwaiter().GetResult();
+            Dictionary<string, int> genderMap = myDataverse.GetChoiceMap("crfbe_employee", "crfbe_gender");
+
+            for (int i = 0; i < count; i++)
+            {
+                Entity target = new Entity("crfbe_employee");
+                target["crfbe_id"] = sources[i].id.ToString();
+                target["crfbe_name"] = sources[i].firstName + " " + sources[i].lastName;
+                target["crfbe_firstname"] = sources[i].firstName;
+                target["crfbe_lastname"] = sources[i].lastName;
+                target["crfbe_age"] = sources[i].age;
+
+                string apiGenderText = sources[i].gender;
+
+                if (genderMap.TryGetValue(apiGenderText.ToLower(), out int genderValue))
+                    target["crfbe_gender"] = new OptionSetValue(genderValue);
+
+                target["crfbe_email"] = sources[i].email;
+                target["crfbe_workphone"] = sources[i].phone;
+                target["crfbe_username"] = sources[i].username;
+                target["crfbe_password"] = sources[i].password;
+
+                DateTime dateOfBirth = DateTime.ParseExact(sources[i].birthDate, "yyyy-M-d", CultureInfo.InvariantCulture);
+                target["crfbe_birithdate"] = dateOfBirth;
+
+                target["crfbe_image"] = sources[i].image;
+                target["crfbe_address1"] = sources[i].address.address;
+                target["crfbe_city"] = sources[i].address.city;
+                target["crfbe_statecode"] = sources[i].address.stateCode;
+                target["crfbe_zip"] = sources[i].address.postalCode;
+                target["crfbe_latitude"] = sources[i].address.coordinates.lat;
+                target["crfbe_longitude"] = sources[i].address.coordinates.lng;
+
+                entities.Add(target);
+            }
+
+            return entities;
         }
 
-        static async Task RunAsync(string responseURL)
+        public static void DefaultException(Exception ex)
         {
-            client.BaseAddress = new Uri(responseURL);
-            client.DefaultRequestHeaders.Accept.Clear();
-            client.DefaultRequestHeaders.Accept.Add(
-                new MediaTypeWithQualityHeaderValue("application/json"));
-
-            try
-            {
-                List<Employee> employees = await GetEmployeeAsyncDJson(client.BaseAddress.ToString());
-                ShowEmployeesDJson(employees);
-
-                //DEBUG
-                // var response2 = await client.GetStringAsync(client.BaseAddress);
-                // Console.WriteLine($"{response2}");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-            }
-
-            // Run import after the awaits are over
-            // TODO: Is there a better way to make sure the async has completed?
-            dataverseTest();
+            Console.WriteLine(ex.Message);
+            Console.WriteLine(ex.StackTrace);
+            Console.WriteLine(ex.InnerException);
+            Console.WriteLine(ex.Source);
         }
-
-        public static void dataverseInitialize()
-        {
-            dataverseSecretID = "";
-            dataverseAppID = "";
-            dataverseUri = "";
-
-            dataverseConnect = $@"AuthType=ClientSecret;
-                                SkipDiscovery=true;url={dataverseUri};
-                                Secret={dataverseSecretID};
-                                ClientId={dataverseAppID};
-                                RequireNewInstance=true";
-        }
-
-        public static void dataverseTest()
-        {
-            dataverseInitialize();
-
-            try
-            {
-                using (ServiceClient svc = new ServiceClient(dataverseConnect))
-                {
-                    if (svc.IsReady)
-                    {
-                        QueryExpression query = new QueryExpression("account");
-                        query.ColumnSet = new ColumnSet(true);
-
-                        EntityCollection accounts = svc.RetrieveMultiple(query);
-
-                        foreach (Entity account in accounts.Entities)
-                        {
-                            Console.WriteLine($"Name: {account.GetAttributeValue<string>("name")}");
-                        }
-                    }
-                    else
-                    {
-                        Console.WriteLine("Failed to connect to Dataverse.");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"{ex.Message}");
-            }
-        }
-
+        #endregion
     }
 }
