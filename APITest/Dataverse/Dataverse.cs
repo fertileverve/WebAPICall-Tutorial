@@ -12,7 +12,6 @@ namespace APITest.Dataverse
         // Connection for Dataverse
         public ServiceClient? _serviceClient;
 
-        //public void DataverseInitialize(string dvSID, string dvAID, string dvURI)
         public void DataverseInitialize(string connectionString)
         {
             _serviceClient = new ServiceClient(connectionString);
