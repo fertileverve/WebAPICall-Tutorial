@@ -7,41 +7,15 @@ using Microsoft.Xrm.Sdk.Query;
 
 namespace APITest.Dataverse
 {
-    // public class Startup
-    // {
-    //     public IConfiguration Configuration { get; }
-
-    //     public Startup(IConfiguration configuration)
-    //     {
-    //         Configuration = configuration;
-    //     }
-
-    //     public void ConfigureServices(IServiceCollection services)
-    //     {
-    //         if (Configuration != null)
-    //         {
-    //             string? dataverseConnectionString = Configuration.GetConnectionString("Dataverse");
-    //             if (dataverseConnectionString is null)
-    //             {
-    //                 throw new InvalidOperationException("Dataverse connection string is not found.");
-    //             }
-    //             else
-    //             {
-    //                 Console.WriteLine($"{dataverseConnectionString}");
-    //                 //services.AddSingleton(new ServiceClient(dataverseConnectionString));
-    //             }
-    //         }
-    //     }
-    // }
     public class DataverseProcessor
     {
         // Connection for Dataverse
         public ServiceClient? _serviceClient;
 
         //public void DataverseInitialize(string dvSID, string dvAID, string dvURI)
-        public void DataverseInitialize()
+        public void DataverseInitialize(string connectionString)
         {
-            _serviceClient = new ServiceClient(Program.dataverseConnectionString);
+            _serviceClient = new ServiceClient(connectionString);
 
             if (!(_serviceClient != null && _serviceClient.IsReady))
             {

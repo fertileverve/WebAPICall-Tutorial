@@ -16,72 +16,104 @@ this code insert all the dummy data into the table. More to do here too.
     3. Field by field comparison to log changes
     4. Where to store log files?
 */
-using Microsoft.Xrm.Sdk;
 using APITest.Dataverse;
 using APITest.APIDummyJSON;
-using System.Globalization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Xrm.Sdk;
+using System.Globalization;
+using System.Net.Http.Headers;
 
 namespace APITest
 {
     public class Program
     {
-        // Connection to API Land
-        static DummyJSONProcessor myAPI = new();
-
         // Connection to Dataverse
         static DataverseProcessor myDataverse = new();
 
-        public static string responseURL = "";
-        public static string dataverseConnectionString = "";
+        private static string responseURL = "";
+        private static string dataverseConnectionString = "";
 
         #region Main
-        public static void Main(string[] args)
+
+        public static async Task Main(string[] args)
         {
+            List<Employee> employees = new();
+
             var configuration = new ConfigurationBuilder()
                 .SetBasePath(Directory.GetCurrentDirectory())
                 .AddJsonFile("appsettings.development.json", optional: false, reloadOnChange: true)
                 .Build();
+
             dataverseConnectionString = configuration.GetConnectionString("Dataverse") ?? throw new InvalidOperationException("Dataverse connection string is not found.");
             responseURL = configuration.GetConnectionString("DummyJSON") ?? throw new InvalidOperationException("API connection string is not found.");
 
-            myAPI.APIInitialize();
-            myDataverse.DataverseInitialize();
+            // Dataverse Steps
+            myDataverse.DataverseInitialize(dataverseConnectionString);
 
-            List<Employee> employees = RunAsync().GetAwaiter().GetResult();
+            // API HttpClientFactory and Logging setup
+            var host = Host.CreateDefaultBuilder(args)
+                .ConfigureServices((context, services) =>
+                {
+                    services.AddHttpClient<DummyJSONProcessor>(client =>
+                    {
+                        client.BaseAddress = new Uri(responseURL);
+                        client.DefaultRequestHeaders.Accept.Clear();
+                        client.DefaultRequestHeaders.Accept.Add(
+                            new MediaTypeWithQualityHeaderValue("application/json"));
+                        client.Timeout = TimeSpan.FromSeconds(30);
+                    });
 
-            myAPI.ShowEmployees(employees);
-            //myDataverse.DataverseTest();
+                    services.AddTransient<Application>();
+                })
+                .ConfigureLogging(logging =>
+                {
+                    logging.ClearProviders();
+                    logging.AddConsole();
+                    logging.SetMinimumLevel(LogLevel.Information);
+                })
+                .Build();
 
+            using (var scope = host.Services.CreateScope())
+            {
+                var app = scope.ServiceProvider.GetRequiredService<Application>();
+                employees = await app.RunAsync();                
+            }
+
+            // TEST/DEBUG
+            // Application.ShowEmployees(employees);
+            
+            // Build Dataversie entities from API data
             List<Entity> entities = SyncEmployees(employees, employees.Count());
-            //myDataverse.ShowEntities(entities);
+            // TEST/DEBUG
+            // myDataverse.ShowEntities(entities);
 
-            //myDataverse.CreateEntities(entities);
+            // Create entites in Dataverse
+            // myDataverse.CreateEntities(entities);
         }
         #endregion
 
         #region The Work
-        static async Task<List<Employee>> RunAsync()
-        {
-            List<Employee> employees = new();
+        // static async Task<List<Employee>> RunAsync()
+        // {
+        //     List<Employee> employees = new();
 
-            try
-            {
-                if (myAPI.client.BaseAddress != null)
-                    employees = await myAPI.GetEmployeeAsync();
-                else
-                    throw new InvalidOperationException("HTTP client BaseAddress is not set.");
-            }
-            catch (Exception ex)
-            {
-                DefaultException(ex);
-            }
+        //     try
+        //     {
+        //         // if (myAPI.client.BaseAddress != null)
+        //         //     employees = await myAPI.GetEmployeeAsync();
+        //         // else
+        //         //     throw new InvalidOperationException("HTTP client BaseAddress is not set.");
+        //     }
+        //     catch (Exception ex)
+        //     {
+        //         DefaultException(ex);
+        //     }
 
-            return employees;
-        }
+        //     return employees;
+        // }
         #endregion
 
         #region Tasks
