@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 
 namespace APITest.Validator
 {
+    #region Configuration Classes
     public class ApiSettings
     {
         public string BaseUrl { get; set; } = "";
@@ -16,7 +17,9 @@ namespace APITest.Validator
         public string ClientSecret { get; set; } = "";
         public List<string> AllowedHosts { get; set; } = new();
     }
+    #endregion
 
+    #region Host Validation Service
     public interface IHostValidator
     {
         bool IsHostAllowed(string url, List<string> allowedHosts);
@@ -92,4 +95,5 @@ namespace APITest.Validator
     {
         public SecurityException(string message) : base(message) { }
     }
+    #endregion
 }

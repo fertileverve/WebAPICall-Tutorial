@@ -1,10 +1,10 @@
-using System.Text.Json;
-using Microsoft.Extensions.Logging;
 using APITest.Validator;
+using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace APITest.APIDummyJSON
 {
-    #region Setup Classes
+    #region Data Models
     public class Employees
     {
         public List<Employee> users { get; set; } = new();
@@ -43,19 +43,24 @@ namespace APITest.APIDummyJSON
     }
     #endregion
 
-    #region Tasks
-    public class DummyJSONProcessor
+    #region API Service
+    public interface IApiService
+    {
+        Task<List<Employee>> GetEmployeesAsync(string path);
+    }
+
+    public class DummyJSONService : IApiService
     {
         //public HttpClient client = new();
         private readonly HttpClient _httpClient;
-        private readonly ILogger<DummyJSONProcessor> _logger;
+        private readonly ILogger<DummyJSONService> _logger;
         private readonly IHostValidator _hostValidator;
         private readonly ApiSettings _apiSettings;
 
-        public DummyJSONProcessor
+        public DummyJSONService
         (
             HttpClient httpClient,
-            ILogger<DummyJSONProcessor> logger,
+            ILogger<DummyJSONService> logger,
             IHostValidator hostValidator,
             ApiSettings apiSettings
         )
@@ -66,7 +71,7 @@ namespace APITest.APIDummyJSON
             _apiSettings = apiSettings;
         }
 
-        public async Task<List<Employee>> GetEmployeeAsync(string path)
+        public async Task<List<Employee>> GetEmployeesAsync(string path)
         {
             List<Employee> employees = new();
 
@@ -76,7 +81,7 @@ namespace APITest.APIDummyJSON
                 _hostValidator.ValidateHost(fullUrl, _apiSettings.AllowedHosts, "DummyJSON API");
 
                 _logger.LogInformation("Fetching employees from {Path}", path);
-                // HttpResponseMessage response = await client.GetAsync(Program.responseURL);
+
                 HttpResponseMessage response = await _httpClient.GetAsync(path);
 
                 if (response.IsSuccessStatusCode)
@@ -133,75 +138,4 @@ namespace APITest.APIDummyJSON
         }
     }
     #endregion
-
-    public class Application
-    {
-        private readonly DummyJSONProcessor _apiProcessor;
-        private readonly ILogger<Application> _logger;
-
-        public Application(DummyJSONProcessor apiProcessor, ILogger<Application> logger)
-        {
-            _apiProcessor = apiProcessor;
-            _logger = logger;
-        }
-
-        public async Task<List<Employee>> RunAsync()
-        {
-            try
-            {
-                List<Employee> employees = await _apiProcessor.GetEmployeeAsync("users");
-
-                // Display results
-                // Console.WriteLine($"\nFound {employees.Count} employees:\n");
-                // foreach (var employee in employees)
-                // {
-                //     Console.WriteLine($"ID: {employee.id}");
-                //     Console.WriteLine($"Name: {employee.firstName} {employee.lastName}");
-                //     Console.WriteLine($"Email: {employee.email}");
-                //     Console.WriteLine($"Age: {employee.age}");
-                //     Console.WriteLine();
-                // }
-
-                _logger.LogInformation("Application completed successfully");
-
-                return employees;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Application failed");
-                throw;
-            }
-        }
-
-        #region Output
-        public static void ShowEmployees(List<Employee> employees)
-        {
-            foreach (var user in employees)
-            {
-                Console.WriteLine($"ID: {user.id}");
-                Console.WriteLine($"Name: {user.firstName + " " + user.lastName}");
-                Console.WriteLine($"Age: {user.age}");
-                Console.WriteLine($"Gender: {user.gender}");
-                Console.WriteLine($"Email: {user.email}");
-                Console.WriteLine($"Image: {user.image}");
-                Console.WriteLine($"Address: {user.address.address}");
-                Console.WriteLine($"City: {user.address.city}");
-                Console.WriteLine($"State: {user.address.state}");
-                Console.WriteLine($"State Code: {user.address.stateCode}");
-                Console.WriteLine($"ZIP: {user.address.postalCode}");
-                Console.WriteLine($"Lat: {user.address.coordinates.lat}");
-                Console.WriteLine($"Lng: {user.address.coordinates.lng}");
-                Console.WriteLine();
-
-                // Type objectType = user.GetType();
-                // PropertyInfo[] properties = objectType.GetProperties();
-
-                // foreach (PropertyInfo property in properties)
-                // {
-                //     Console.WriteLine($"{property.Name}: {property.GetValue(user, null)}");
-                // }
-            }
-        }
-        #endregion
-    }
 }
