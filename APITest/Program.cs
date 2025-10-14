@@ -16,8 +16,9 @@ this code insert all the dummy data into the table. More to do here too.
     3. Field by field comparison to log changes
     4. Where to store log files?
 */
-using APITest.Dataverse;
 using APITest.APIDummyJSON;
+using APITest.Dataverse;
+using APITest.Validator;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
@@ -33,8 +34,9 @@ namespace APITest
         // Connection to Dataverse
         static DataverseProcessor myDataverse = new();
 
-        private static string responseURL = "";
+        //private static string responseURL = "";
         private static string dataverseConnectionString = "";
+        //private static string whiteListing = "";
 
         #region Main
 
@@ -44,26 +46,54 @@ namespace APITest
 
             var configuration = new ConfigurationBuilder()
                 .SetBasePath(Directory.GetCurrentDirectory())
-                .AddJsonFile("appsettings.development.json", optional: false, reloadOnChange: true)
+                .AddJsonFile("appsettings.Development.json", optional: false, reloadOnChange: true)
                 .Build();
 
             dataverseConnectionString = configuration.GetConnectionString("Dataverse") ?? throw new InvalidOperationException("Dataverse connection string is not found.");
-            responseURL = configuration.GetConnectionString("DummyJSON") ?? throw new InvalidOperationException("API connection string is not found.");
+            //responseURL = configuration.GetConnectionString("DummyJSON") ?? throw new InvalidOperationException("API connection string is not found.");
 
             // Dataverse Steps
             myDataverse.DataverseInitialize(dataverseConnectionString);
 
             // API HttpClientFactory and Logging setup
             var host = Host.CreateDefaultBuilder(args)
+                .ConfigureAppConfiguration((context, config) =>
+                {
+                    config.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+                    config.AddJsonFile($"appsettings.{context.HostingEnvironment.EnvironmentName}.json", optional: true, reloadOnChange: true);
+                    Console.WriteLine($"{context.HostingEnvironment.EnvironmentName}");
+
+                    if (context.HostingEnvironment.IsDevelopment())
+                    {
+                        config.AddUserSecrets<Program>();
+                    }
+
+                    config.AddEnvironmentVariables();
+                })
                 .ConfigureServices((context, services) =>
                 {
+                    var configuration = context.Configuration;
+                    var apiSettings = configuration.GetSection("Api").Get<ApiSettings>()
+                        ?? throw new InvalidOperationException("Api settings not found in configuration.");
+                    var dataverseSettings = configuration.GetSection("Dataverse").Get<DataverseSettings>()
+                        ?? throw new InvalidOperationException("Dataverse settings no found in configuration.");
+
+                    services.AddSingleton(apiSettings);
+                    services.AddSingleton(dataverseSettings);
+                    services.AddSingleton<IHostValidator, HostValidator>();
+
+                    var tempValidator = new HostValidator(
+                        services.BuildServiceProvider().GetRequiredService<ILogger<HostValidator>>());
+
+                    tempValidator.ValidateHost(apiSettings.BaseUrl, apiSettings.AllowedHosts, "API");
+
                     services.AddHttpClient<DummyJSONProcessor>(client =>
                     {
-                        client.BaseAddress = new Uri(responseURL);
+                        client.BaseAddress = new Uri(apiSettings.BaseUrl);
                         client.DefaultRequestHeaders.Accept.Clear();
                         client.DefaultRequestHeaders.Accept.Add(
                             new MediaTypeWithQualityHeaderValue("application/json"));
-                        client.Timeout = TimeSpan.FromSeconds(30);
+                        client.Timeout = TimeSpan.FromSeconds(apiSettings.TimeoutSeconds);
                     });
 
                     services.AddTransient<Application>();
@@ -79,41 +109,20 @@ namespace APITest
             using (var scope = host.Services.CreateScope())
             {
                 var app = scope.ServiceProvider.GetRequiredService<Application>();
-                employees = await app.RunAsync();                
+                employees = await app.RunAsync();
             }
 
             // TEST/DEBUG
-            // Application.ShowEmployees(employees);
-            
+            //Application.ShowEmployees(employees);
+
             // Build Dataversie entities from API data
             List<Entity> entities = SyncEmployees(employees, employees.Count());
             // TEST/DEBUG
-            // myDataverse.ShowEntities(entities);
+            //myDataverse.ShowEntities(entities);
 
             // Create entites in Dataverse
             // myDataverse.CreateEntities(entities);
         }
-        #endregion
-
-        #region The Work
-        // static async Task<List<Employee>> RunAsync()
-        // {
-        //     List<Employee> employees = new();
-
-        //     try
-        //     {
-        //         // if (myAPI.client.BaseAddress != null)
-        //         //     employees = await myAPI.GetEmployeeAsync();
-        //         // else
-        //         //     throw new InvalidOperationException("HTTP client BaseAddress is not set.");
-        //     }
-        //     catch (Exception ex)
-        //     {
-        //         DefaultException(ex);
-        //     }
-
-        //     return employees;
-        // }
         #endregion
 
         #region Tasks

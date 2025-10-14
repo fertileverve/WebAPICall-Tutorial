@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using APITest.Validator;
 
 namespace APITest.APIDummyJSON
 {
@@ -42,17 +43,27 @@ namespace APITest.APIDummyJSON
     }
     #endregion
 
+    #region Tasks
     public class DummyJSONProcessor
     {
         //public HttpClient client = new();
         private readonly HttpClient _httpClient;
         private readonly ILogger<DummyJSONProcessor> _logger;
+        private readonly IHostValidator _hostValidator;
+        private readonly ApiSettings _apiSettings;
 
-        #region Tasks
-        public DummyJSONProcessor(HttpClient httpClient, ILogger<DummyJSONProcessor> logger)
+        public DummyJSONProcessor
+        (
+            HttpClient httpClient,
+            ILogger<DummyJSONProcessor> logger,
+            IHostValidator hostValidator,
+            ApiSettings apiSettings
+        )
         {
             _httpClient = httpClient;
             _logger = logger;
+            _hostValidator = hostValidator;
+            _apiSettings = apiSettings;
         }
 
         public async Task<List<Employee>> GetEmployeeAsync(string path)
@@ -61,7 +72,10 @@ namespace APITest.APIDummyJSON
 
             try
             {
-                _logger.LogInformation($"Fetching employees from {path}");
+                string fullUrl = new Uri(_httpClient.BaseAddress!, path).ToString();
+                _hostValidator.ValidateHost(fullUrl, _apiSettings.AllowedHosts, "DummyJSON API");
+
+                _logger.LogInformation("Fetching employees from {Path}", path);
                 // HttpResponseMessage response = await client.GetAsync(Program.responseURL);
                 HttpResponseMessage response = await _httpClient.GetAsync(path);
 
@@ -90,9 +104,14 @@ namespace APITest.APIDummyJSON
                 }
                 else
                 {
-                    _logger.LogError($"Failed to fetch employees. Status code: {response.StatusCode}");
+                    _logger.LogError("Failed to fetch employees. Status code: {StatusCode}", response.StatusCode);
                     response.EnsureSuccessStatusCode();
                 }
+            }
+            catch (SecurityException ex)
+            {
+                _logger.LogError(ex, "Security validation failed");
+                throw;
             }
             catch (HttpRequestException ex)
             {
@@ -112,16 +131,8 @@ namespace APITest.APIDummyJSON
 
             return employees;
         }
-
-        // public void APIInitialize()
-        // {
-        //     client.BaseAddress = new Uri(Program.responseURL);
-        //     client.DefaultRequestHeaders.Accept.Clear();
-        //     client.DefaultRequestHeaders.Accept.Add(
-        //         new MediaTypeWithQualityHeaderValue("application/json"));
-        // }
-        #endregion
     }
+    #endregion
 
     public class Application
     {
