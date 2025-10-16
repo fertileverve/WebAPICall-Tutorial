@@ -25,8 +25,8 @@ namespace APITest.App
 
             try
             {
-                _logger.LogInformation("Testing Dataverse connection...");
-                await _dataverseService.TestConnectionAsync();
+                // _logger.LogInformation("Testing Dataverse connection...");
+                // await _dataverseService.TestConnectionAsync();
 
                 _logger.LogInformation("Fetching employees from API...");
                 List<Employee> employees = await _apiService.GetEmployeesAsync("users");
@@ -37,10 +37,31 @@ namespace APITest.App
 
                 List<Entity> entities = ConvertToDataverseEntities(employees, employees.Count, genderMap);
 
-                _logger.LogInformation("Creating employee records in Dataverse...");
-                await _dataverseService.CreateEmployeesAsync(entities);
+                // foreach (Entity entity in entities)
+                // {
+                //     string id = entity.KeyAttributes["crfbe_id"]?.ToString() ?? string.Empty;
+                //     Console.WriteLine($"Entity ID: {id}");
+                // }
 
-                Console.WriteLine($"\nSuccessfully created {entities.Count} employee records in Dataverse!");
+                //_logger.LogInformation("Creating employee records in Dataverse...");
+                //await _dataverseService.CreateEmployeesAsync(entities);
+
+                // Changing to Upsert, actively developing here
+                //await _dataverseService.SyncEmployeesAsync(entities);
+                var syncSummary = await _dataverseService.SyncEmployeesWithChangeTrackingAsync(entities);
+
+                // Display summary
+                Console.WriteLine($"\n=== Sync Summary ===");
+                Console.WriteLine($"Total Records: {syncSummary.TotalRecords}");
+                Console.WriteLine($"Created: {syncSummary.Created}");
+                Console.WriteLine($"Updated: {syncSummary.Updated}");
+                Console.WriteLine($"Unchanged: {syncSummary.Unchanged}");
+                Console.WriteLine($"Failed: {syncSummary.Failed}");
+                Console.WriteLine($"Total Field Changes: {syncSummary.TotalFieldChanges}");
+                Console.WriteLine($"Duration: {syncSummary.Duration.TotalSeconds:F2}s");
+                Console.WriteLine($"\nCheck logs/audit/ for detailed change tracking");
+
+                //Console.WriteLine($"\nSuccessfully created {entities.Count} employee records in Dataverse!");
 
                 _logger.LogInformation("Application completed successfully");
             }
@@ -58,7 +79,10 @@ namespace APITest.App
             for (int i = 0; i < count; i++)
             {
                 Entity target = new Entity("crfbe_employee");
-                target["crfbe_id"] = sources[i].id.ToString();
+
+                target.KeyAttributes.Add("crfbe_id", sources[i].id.ToString());
+
+                //target["crfbe_id"] = sources[i].id.ToString();
                 target["crfbe_name"] = sources[i].firstName + " " + sources[i].lastName;
                 target["crfbe_firstname"] = sources[i].firstName;
                 target["crfbe_lastname"] = sources[i].lastName;
@@ -76,7 +100,6 @@ namespace APITest.App
 
                 if (!string.IsNullOrEmpty(sources[i].birthDate))
                 {
-                    //DateTime dateOfBirth = DateTime.ParseExact(sources[i].birthDate, "yyyy-M-d", CultureInfo.InvariantCulture);
                     if (DateTime.TryParse(sources[i].birthDate, out DateTime dateOfBirth))
                         target["crfbe_birithdate"] = dateOfBirth;
                 }
