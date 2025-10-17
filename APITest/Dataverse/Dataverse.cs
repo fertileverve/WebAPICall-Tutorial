@@ -219,6 +219,12 @@ namespace APITest.Dataverse
                         }
                         else
                         {
+                            // Finding an issue with the key attribute when creating the entity
+                            // Attempting to remove the key attribute and and it back in as just a value
+                            var crfbe_id = newEntity.KeyAttributes["crfbe_id"]?.ToString() ?? string.Empty;
+                            newEntity.KeyAttributes.Remove("crfbe_id");
+                            newEntity["crfbe_id"] = crfbe_id;
+
                             var newId = await Task.Run(() => client.Create(newEntity));
                             summary.Created++;
 

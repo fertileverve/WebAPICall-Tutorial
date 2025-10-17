@@ -77,6 +77,7 @@ namespace APITest.APIDummyJSON
 
             try
             {
+                path += "?limit=0";
                 string fullUrl = new Uri(_httpClient.BaseAddress!, path).ToString();
                 _hostValidator.ValidateHost(fullUrl, _apiSettings.AllowedHosts, "DummyJSON API");
 

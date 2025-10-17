@@ -51,15 +51,15 @@ namespace APITest.App
                 var syncSummary = await _dataverseService.SyncEmployeesWithChangeTrackingAsync(entities);
 
                 // Display summary
-                Console.WriteLine($"\n=== Sync Summary ===");
-                Console.WriteLine($"Total Records: {syncSummary.TotalRecords}");
-                Console.WriteLine($"Created: {syncSummary.Created}");
-                Console.WriteLine($"Updated: {syncSummary.Updated}");
-                Console.WriteLine($"Unchanged: {syncSummary.Unchanged}");
-                Console.WriteLine($"Failed: {syncSummary.Failed}");
-                Console.WriteLine($"Total Field Changes: {syncSummary.TotalFieldChanges}");
-                Console.WriteLine($"Duration: {syncSummary.Duration.TotalSeconds:F2}s");
-                Console.WriteLine($"\nCheck logs/audit/ for detailed change tracking");
+                // Console.WriteLine($"\n=== Sync Summary ===");
+                // Console.WriteLine($"Total Records: {syncSummary.TotalRecords}");
+                // Console.WriteLine($"Created: {syncSummary.Created}");
+                // Console.WriteLine($"Updated: {syncSummary.Updated}");
+                // Console.WriteLine($"Unchanged: {syncSummary.Unchanged}");
+                // Console.WriteLine($"Failed: {syncSummary.Failed}");
+                // Console.WriteLine($"Total Field Changes: {syncSummary.TotalFieldChanges}");
+                // Console.WriteLine($"Duration: {syncSummary.Duration.TotalSeconds:F2}s");
+                // Console.WriteLine($"\nCheck logs/audit/ for detailed change tracking");
 
                 //Console.WriteLine($"\nSuccessfully created {entities.Count} employee records in Dataverse!");
 
@@ -82,7 +82,6 @@ namespace APITest.App
 
                 target.KeyAttributes.Add("crfbe_id", sources[i].id.ToString());
 
-                //target["crfbe_id"] = sources[i].id.ToString();
                 target["crfbe_name"] = sources[i].firstName + " " + sources[i].lastName;
                 target["crfbe_firstname"] = sources[i].firstName;
                 target["crfbe_lastname"] = sources[i].lastName;

@@ -5,10 +5,8 @@ using APITest.Validator;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Serilog;
 using System.Net.Http.Headers;
-using Microsoft.VisualBasic;
 
 namespace APITest
 {
