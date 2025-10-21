@@ -1,0 +1,57 @@
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build results
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+*.pdb
+*.ilk
+*.aps
+*.bsc
+*.idb
+*.sbr
+*.res
+*.pch
+*.ipch
+
+# Project files
+*.csproj.user
+*.vcxproj.user
+
+# NuGet packages
+packages/
+*.nupkg
+*.snupkg
+
+# Rider
+.idea/
+
+# Visual Studio Code
+.vscode/
+
+# ReSharper
+*.resharper
+
+# NCrunch
+*.ncrunch*
+
+# StyleCop
+StyleCop.Cache
+
+# Other common temporary files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.bak
+*.log
+*.tmp
+
+# Ignore the logs folder
+/logs/
