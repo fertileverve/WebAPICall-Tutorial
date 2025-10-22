@@ -2,8 +2,6 @@
 using Moq;
 using Microsoft.Extensions.Logging;
 using APITest.Validator;
-using System;
-using System.Collections.Generic;
 
 namespace APITest.Tests
 {
@@ -52,7 +50,7 @@ namespace APITest.Tests
         }
 
         [Fact]
-        public void VAlidateHost_WithDisallowedUrl_ThrowsSecurityException()
+        public void ValidateHost_WithDisallowedUrl_ThrowsSecurityException()
         {
             var url = "https://evil.com";
             var allowedHosts = new List<string> { "dummyjson.com" };
@@ -62,6 +60,45 @@ namespace APITest.Tests
             {
                 _validator.ValidateHost(url, allowedHosts, serviceName);
             });
+        }
+
+        [Fact]
+        public void IsHostAllowed_WithNullUrl_ReturnsFalse()
+        {
+            var allowedHosts = new List<string> { "dummyjson.com" };
+            Assert.False(_validator.IsHostAllowed(null, allowedHosts));
+        }
+
+        [Fact]
+        public void IsHostAllowed_WithEmptyAllowedHosts_ReturnsFalse()
+        {
+            var url = "https://dummyjson.com/users?limit=0";
+            var allowedHosts = new List<string>();
+            Assert.False(_validator.IsHostAllowed(url, allowedHosts));
+        }
+
+        [Fact]
+        public void IsHostAllowed_WithMalformedUrl_ReturnsFalse()
+        {
+            var url = "not-a-real-url";
+            var allowedHosts = new List<string> { "dummyjson.com" };
+            Assert.False(_validator.IsHostAllowed(url, allowedHosts));
+        }
+
+        [Fact]
+        public void IsHostAllowed_WithWildcardHost_MatchesSubdomain()
+        {
+            var url = "https://api.dummyjson.com/users?limit=0";
+            var allowedHosts = new List<string> { "*.dummyjson.com" };
+            Assert.True(_validator.IsHostAllowed(url, allowedHosts));
+        }
+
+        [Fact]
+        public void IsHoseAllowed_WithCaseInsensitiveHostMatch_ReturnsTrue()
+        {
+            var url = "https://DUMMYJSON.COM/users?limit=0";
+            var allowedHosts = new List<string> { "dummyjson.com" };
+            Assert.True(_validator.IsHostAllowed(url, allowedHosts));
         }
     }
 }
